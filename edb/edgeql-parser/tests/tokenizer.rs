@@ -173,10 +173,6 @@ fn dot_tokens() {
 fn tuple_dot_vs_float() {
     assert_eq!(tok_str("tuple.1.<"), ["tuple", ".", "1", ".<"]);
     assert_eq!(tok_typ("tuple.1.<"), [Ident, Dot, IntConst, BackwardLink]);
-    assert_eq!(tok_str("1.<"), ["1.", "<"]);
-    assert_eq!(tok_typ("1.<"), [FloatConst, Less]);
-    assert_eq!(tok_str("1.e123"), ["1.e123"]);
-    assert_eq!(tok_typ("1.e123"), [FloatConst]);
     assert_eq!(tok_str("tuple.1.e123"), ["tuple", ".", "1", ".", "e123"]);
     assert_eq!(tok_typ("tuple.1.e123"), [Ident, Dot, IntConst, Dot, Ident]);
 }
@@ -253,8 +249,6 @@ fn bigint() {
 
 #[test]
 fn float() {
-    assert_eq!(tok_str("0."), ["0."]);
-    assert_eq!(tok_typ("0."), [FloatConst]);
     assert_eq!(tok_str("     0.0"), ["0.0"]);
     assert_eq!(tok_typ("     0.0"), [FloatConst]);
     assert_eq!(tok_str("123.999"), ["123.999"]);
@@ -272,8 +266,6 @@ fn float() {
     assert_eq!(tok_str("2345e-7"), ["2345e-7"]);
     assert_eq!(tok_typ("2345e-7"), [FloatConst]);
 
-    assert_eq!(tok_str("0. "), ["0."]);
-    assert_eq!(tok_typ("0. "), [FloatConst]);
     assert_eq!(tok_str("     0.0 "), ["0.0"]);
     assert_eq!(tok_typ("     0.0 "), [FloatConst]);
     assert_eq!(tok_str("123.999 "), ["123.999"]);
@@ -297,8 +289,6 @@ fn float() {
 
 #[test]
 fn decimal() {
-    assert_eq!(tok_str("0.n"), ["0.n"]);
-    assert_eq!(tok_typ("0.n"), [DecimalConst]);
     assert_eq!(tok_str("     0.0n"), ["0.0n"]);
     assert_eq!(tok_typ("     0.0n"), [DecimalConst]);
     assert_eq!(tok_str("123.999n"), ["123.999n"]);
@@ -312,8 +302,6 @@ fn decimal() {
     assert_eq!(tok_str("2345e-7n"), ["2345e-7n"]);
     assert_eq!(tok_typ("2345e-7n"), [DecimalConst]);
 
-    assert_eq!(tok_str("0.n "), ["0.n"]);
-    assert_eq!(tok_typ("0.n "), [DecimalConst]);
     assert_eq!(tok_str("     0.0n "), ["0.0n"]);
     assert_eq!(tok_typ("     0.0n "), [DecimalConst]);
     assert_eq!(tok_str("123.999n "), ["123.999n"]);
@@ -423,6 +411,18 @@ fn numbers_from_py() {
 
 #[test]
 fn num_errors() {
+    assert_eq!(tok_err("0. "),
+        "Expected `expected digit after dot, found end of decimal`");
+    assert_eq!(tok_err("1.<"),
+        "Expected `expected digit after dot, found end of decimal`");
+    assert_eq!(tok_err("0.n"),
+        "Expected `expected digit after dot, found suffix`");
+    assert_eq!(tok_err("0.e1"),
+        "Expected `expected digit after dot, found exponent`");
+    assert_eq!(tok_err("0.e1n"),
+        "Expected `expected digit after dot, found exponent`");
+    assert_eq!(tok_err("0."),
+        "Expected `expected digit after dot, found end of decimal`");
     assert_eq!(tok_err("1.0.x"),
         "Unexpected `extra decimal dot in number`");
     assert_eq!(tok_err("1.0e1."),
