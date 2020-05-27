@@ -109,6 +109,7 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
         SELECT +7;
         SELECT -7;
         SELECT 551;
+        SELECT 1_024;
         """
 
     def test_edgeql_syntax_constants_02(self):
@@ -145,7 +146,9 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
         SELECT 3.5432e20;
         SELECT 3.5432e+20;
         SELECT 3.5432e-20;
+        SELECT 3.543_2e-20;
         SELECT 354.32e-20;
+        SELECT 2_354.32e-20;
 
 % OK %
 
@@ -155,7 +158,9 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
         SELECT 3.5432e20;
         SELECT 3.5432e+20;
         SELECT 3.5432e-20;
+        SELECT 3.543_2e-20;
         SELECT 354.32e-20;
+        SELECT 2_354.32e-20;
         """
 
     def test_edgeql_syntax_constants_05(self):
@@ -181,6 +186,8 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
         SELECT 02;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, 'expected digit after dot',
+                  line=2, col=16)
     def test_edgeql_syntax_constants_08(self):
         """
         SELECT 1.;
@@ -449,12 +456,15 @@ aa';
         SELECT -1n;
         SELECT 100000n;
         SELECT -100000n;
+        SELECT 100_000n;
+        SELECT -100_000n;
         SELECT -354.32n;
         SELECT 35400000000000.32n;
         SELECT -35400000000000000000.32n;
         SELECT 3.5432e20n;
         SELECT -3.5432e+20n;
         SELECT 3.5432e-20n;
+        SELECT 3.543_2e-20n;
         SELECT 354.32e-20n;
 
 % OK %
@@ -465,14 +475,18 @@ aa';
         SELECT -1n;
         SELECT 100000n;
         SELECT -100000n;
+        SELECT 100_000n;
+        SELECT -100_000n;
         SELECT -354.32n;
         SELECT 35400000000000.32n;
         SELECT -35400000000000000000.32n;
         SELECT 3.5432e20n;
         SELECT -3.5432e+20n;
         SELECT 3.5432e-20n;
+        SELECT 3.543_2e-20n;
         SELECT 354.32e-20n;
         """
+
 
     @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected 'n'",
                   line=2, col=18)

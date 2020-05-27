@@ -358,23 +358,6 @@ class TestExpressions(tb.QueryTestCase):
             {'std::decimal'},
         )
 
-        await self.assert_query_result(
-            r'''SELECT (INTROSPECT TYPEOF 1_024).name;''',
-            {'std::int64'},
-        )
-        await self.assert_query_result(
-            r'''SELECT (INTROSPECT TYPEOF 1_024.0).name;''',
-            {'std::float64'},
-        )
-        await self.assert_query_result(
-            r'''SELECT (INTROSPECT TYPEOF 1_024n).name;''',
-            {'std::bigint'},
-        )
-        await self.assert_query_result(
-            r'''SELECT (INTROSPECT TYPEOF 1_024.0n).name;''',
-            {'std::decimal'},
-        )
-
     async def test_edgeql_expr_literals_02(self):
         with self.assertRaisesRegex(edgedb.NumericOutOfRangeError,
                                     'std::int16 out of range'):
