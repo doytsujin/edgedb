@@ -16,8 +16,6 @@
 # limitations under the License.
 #
 
-import decimal
-
 import edgedb
 
 from edb.testbase import server as tb
@@ -1774,55 +1772,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     SELECT {a, a}
                 $$;
             """)
-
-    async def test_edgeql_ddl_function_26(self):
-        # This test checks constants, but we have to do DDLs to test them
-        # with constant extraction disabled
-        await self.con.execute('''
-            CREATE FUNCTION test::constant_int() -> std::int64 {
-                USING (SELECT 1_024);
-            };
-            CREATE FUNCTION test::constant_bigint() -> std::bigint {
-                USING (SELECT 1_024n);
-            };
-            CREATE FUNCTION test::constant_float() -> std::float64 {
-                USING (SELECT 1_024.1_250);
-            };
-            CREATE FUNCTION test::constant_decimal() -> std::decimal {
-                USING (SELECT 1_024.1_024n);
-            };
-        ''')
-        try:
-            await self.assert_query_result(
-                r'''
-                    SELECT (
-                        int := test::constant_int(),
-                        bigint := test::constant_bigint(),
-                        float := test::constant_float(),
-                        decimal := test::constant_decimal(),
-                    )
-                ''',
-                [{
-                    "int": 1024,
-                    "bigint": 1024,
-                    "float": 1024.125,
-                    "decimal": 1024.1024,
-                }],
-                [{
-                    "int": 1024,
-                    "bigint": 1024,
-                    "float": 1024.125,
-                    "decimal": decimal.Decimal('1024.1024'),
-                }],
-            )
-        finally:
-            await self.con.execute("""
-                DROP FUNCTION test::constant_int();
-                DROP FUNCTION test::constant_float();
-                DROP FUNCTION test::constant_bigint();
-                DROP FUNCTION test::constant_decimal();
-            """)
-
 
     async def test_edgeql_ddl_module_01(self):
         with self.assertRaisesRegex(
