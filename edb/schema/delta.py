@@ -990,36 +990,111 @@ class ObjectCommand(
         root = DeltaRoot()
         return root, root
 
-    def _prohibit_if_expr_refs(
+    def _propagate_if_expr_refs(
         self,
         schema: s_schema.Schema,
         context: CommandContext,
         action: str,
-    ) -> None:
+    ) -> Tuple[s_schema.Schema, List[qlast.DDLCommand]]:
         scls = self.scls
         expr_refs = s_expr.get_expr_referrers(schema, scls)
+        # Commands to be executed after the original change is
+        # complete
+        finalize_ast: List[qlast.DDLCommand] = []
 
         if expr_refs:
             ref_desc = []
             for ref, fn in expr_refs.items():
-                if fn == 'expr':
-                    fdesc = 'expression'
+
+                from edb.common.markup import dump
+                dump(ref, schema=schema, marker='delta.py:1006')
+
+                from . import ddl as s_ddl
+                from . import indexes as s_indexes
+
+                if isinstance(ref, s_indexes.Index):
+                    # If the affected entity is an index, just drop it and
+                    # schedule it to be re-created.
+                    idx_subj = ref.get_subject(schema)
+
+                    dump(ref.get_expr(schema).origqlast, schema=schema, marker='delta.py:1020')
+                    dump(idx_subj, schema=schema, marker='delta.py:1021')
+                    dump(idx_subj.get_name(schema), schema=schema, marker='delta.py:1022')
+
+                    module, shortname = idx_subj.get_name(schema).split('::', 1)
+
+                    finalize_ast.append(
+                        qlast.AlterObjectType(
+                            name=qlast.ObjectRef(
+                                module=module,
+                                name=shortname,
+                            ),
+                            commands=[
+                                qlast.CreateIndex(
+                                    name=qlast.ObjectRef(name='idx'),
+                                    expr=ref.get_expr(schema).origqlast,
+                                )
+                            ],
+                        ),
+                    )
+
+                    dump(finalize_ast[-1], schema=schema, marker='delta.py:1034')
+
+                    schema = s_ddl.cmd_from_ddl(
+                        qlast.AlterObjectType(
+                            name=qlast.ObjectRef(
+                                module=module,
+                                name=shortname,
+                            ),
+                            commands=[
+                                qlast.DropIndex(
+                                    name=qlast.ObjectRef(name='idx'),
+                                    expr=ref.get_expr(schema).origqlast,
+                                )
+                            ],
+                        ),
+                        schema=schema,
+                        modaliases={None: 'default'},
+                    ).apply(schema, context)
+
                 else:
-                    fdesc = f"{fn.replace('_', ' ')} expression"
+                    if fn == 'expr':
+                        fdesc = 'expression'
+                    else:
+                        fdesc = f"{fn.replace('_', ' ')} expression"
 
-                vn = ref.get_verbosename(schema, with_parent=True)
+                    vn = ref.get_verbosename(schema, with_parent=True)
 
-                ref_desc.append(f'{fdesc} of {vn}')
+                    ref_desc.append(f'{fdesc} of {vn}')
 
-            expr_s = 'an expression' if len(ref_desc) == 1 else 'expressions'
-            ref_desc_s = "\n - " + "\n - ".join(ref_desc)
+            if ref_desc:
+                expr_s = 'an expression' if len(ref_desc) == 1 else 'expressions'
+                ref_desc_s = "\n - " + "\n - ".join(ref_desc)
 
-            raise errors.SchemaDefinitionError(
-                f'cannot {action} because it is used in {expr_s}',
-                details=(
-                    f'{scls.get_verbosename(schema)} is used in:{ref_desc_s}'
+                raise errors.SchemaDefinitionError(
+                    f'cannot {action} because it is used in {expr_s}',
+                    details=(
+                        f'{scls.get_verbosename(schema)} is used in:{ref_desc_s}'
+                    )
                 )
-            )
+
+        return schema, finalize_ast
+
+    def _restore_propagated_refs(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+        finalize_ast: List[qlast.DDLCommand],
+    ) -> s_schema.Schema:
+        from . import ddl as s_ddl
+        for cmd_ast in finalize_ast:
+            schema = s_ddl.cmd_from_ddl(
+                cmd_ast,
+                schema=schema,
+                modaliases={None: 'default'},
+            ).apply(schema, context)
+
+        return schema
 
     def _append_subcmd_ast(
         self,
@@ -1653,10 +1728,13 @@ class RenameObject(AlterObjectFragment):
         # not supported yet.  Eventually we'll add support
         # for transparent recompilation.
         vn = scls.get_verbosename(schema)
-        self._prohibit_if_expr_refs(schema, context, action=f'rename {vn}')
+        schema, finalize_ast = self._propagate_if_expr_refs(
+            schema, context, action=f'rename {vn}')
 
         self.old_name = self.classname
         schema = scls.set_field_value(schema, 'name', self.new_name)
+
+        schema = self._restore_propagated_refs(schema, context, finalize_ast)
 
         return schema
 

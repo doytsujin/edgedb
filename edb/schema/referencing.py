@@ -970,6 +970,18 @@ class AlterReferencedInheritingObject(
     inheriting.AlterInheritingObject[ReferencedInheritingObjectT],
 ):
 
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        if self.get_attribute_value('is_from_alias'):
+            return None
+        else:
+            return super()._get_ast(schema, context, parent_node=parent_node)
+
     @classmethod
     def _cmd_tree_from_ast(
         cls,
